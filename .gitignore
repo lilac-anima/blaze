@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Neo4j
+/data/
+/logs/
+/import/
+
+# Env
+.env
+*.env.local
+
+# Node
+node_modules/
+frontend/dist/
+
+# Project specific
+*.db
+*.neo4j

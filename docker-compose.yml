@@ -1,0 +1,61 @@
+services:
+  neo4j:
+    image: neo4j:5-community
+    container_name: blaze-neo4j
+    ports:
+      - "7687:7687"   # Bolt protocol
+      - "7474:7474"   # HTTP browser
+    environment:
+      NEO4J_AUTH: neo4j/burner_social_dev
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+      - ./backend/schema:/import   # Mount schema for easy loading
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p burner_social_dev 'RETURN 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - burner-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: blaze-api
+    ports:
+      - "8000:8000"
+    environment:
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: burner_social_dev
+      JWT_SECRET_KEY: blaze-dev-secret-change-in-production
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    networks:
+      - burner-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: blaze-frontend
+    ports:
+      - "5173:80"   # Dev mode: 5173; production builds serve on 80
+    depends_on:
+      - backend
+    networks:
+      - burner-network
+
+volumes:
+  neo4j_data:
+  neo4j_logs:
+
+networks:
+  burner-network:
+    driver: bridge

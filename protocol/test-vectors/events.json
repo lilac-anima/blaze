@@ -1,0 +1,59 @@
+{
+  "format": "blaze-event-v1",
+  "vectors": [
+    {
+      "name": "valid-post",
+      "expectation": "valid",
+      "event": {
+        "protocol_version": 1,
+        "event_type": "post.created",
+        "author": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+        "object_id": "post-vector-1",
+        "created_at": "2026-01-01T00:00:00Z",
+        "payload": {
+          "body": "hello"
+        },
+        "parents": [],
+        "event_id": "76b3289e607ee0916190797cee45a7462fe0b836d108cae3168aa4e975f0e3e9",
+        "signature": "xLzcmwF9qOsqULQS-SMXGvGdrbRd-jntmJydkdhF5u8qcnf_2r1z0BWdOJLdPi5aTIZtekB-cqGUnnmWE3dOBg"
+      }
+    },
+    {
+      "name": "valid-profile",
+      "expectation": "valid",
+      "event": {
+        "protocol_version": 1,
+        "event_type": "profile.updated",
+        "author": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+        "object_id": "profile-vector-1",
+        "created_at": "2026-01-01T00:00:00Z",
+        "payload": {
+          "display_name": "Vector User"
+        },
+        "parents": [],
+        "event_id": "e00253b542fee1a0350f56020d3bd1527024837f0806a6e7d7b0c570bda28cc7",
+        "signature": "361n3wi5zrfdex2GRAWh6sQ8yDTRRW9G39X27O0CSoIJ9WTmOCI8P9eScNpeI69zxCo4cmfIWKod5ujE3yDuCw"
+      }
+    },
+    {
+      "name": "tampered-payload",
+      "expectation": "invalid",
+      "reason": "event_id_mismatch"
+    },
+    {
+      "name": "missing-signature",
+      "expectation": "invalid",
+      "reason": "missing_required_field"
+    },
+    {
+      "name": "duplicate",
+      "expectation": "duplicate",
+      "reason": "event_id_already_seen"
+    },
+    {
+      "name": "unsupported-version",
+      "expectation": "invalid",
+      "reason": "unsupported_protocol_version"
+    }
+  ]
+}
