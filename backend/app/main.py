@@ -17,6 +17,7 @@ from backend.app.routers import (
     groups,
     posts,
     feed,
+    sync,
 )
 from backend.app.auth.router import router as auth_router
 from backend.app.auth.profile import router as profile_router
@@ -61,6 +62,7 @@ app.include_router(camps.router)
 app.include_router(groups.router)
 app.include_router(posts.router)
 app.include_router(feed.router)
+app.include_router(sync.router)
 
 # ── Auth & Profile ──────────────────────────────────────────────────
 app.include_router(auth_router)
