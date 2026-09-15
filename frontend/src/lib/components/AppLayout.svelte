@@ -6,6 +6,7 @@
   import Sidebar from './Sidebar.svelte';
   import TopBar from './TopBar.svelte';
   import { getTokenPayload } from '../auth/token.js';
+  import PeerSyncPanel from './PeerSyncPanel.svelte';
 
   let { children } = $props();
   let sidebarCollapsed = $state(false);
@@ -31,6 +32,7 @@
   <TopBar {user} onToggleSidebar={toggleSidebar} />
 
   <main class="main-content">
+    <PeerSyncPanel />
     {@render children?.()}
   </main>
 </div>

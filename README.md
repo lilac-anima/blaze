@@ -6,13 +6,13 @@ Blaze is being designed to evolve from its current FastAPI + Neo4j prototype int
 
 ## Project Status
 
-The repository currently contains a working centralized prototype. The frontend also has an opt-in Phase 3 local-first preview controlled by `VITE_FEATURE_MODE`:
+The repository currently contains a working centralized prototype plus an opt-in Phase 1/2 local-first preview controlled by `VITE_FEATURE_MODE`:
 
 - `centralized` (default): existing JWT/API behavior.
-- `local-first`: browser-generated signing identity, signed profile/post events, local projections, and offline local creation.
-- `p2p-preview`: same local behavior while peer transport is still disabled.
+- `local-first`: browser-generated signing identity, signed profile/post events, local projections, offline local creation, and peer-sync controls.
+- `p2p-preview`: the same local behavior with the Phase 2 WebRTC/signaling preview enabled.
 
-Local-first data is local-only or pending sync until the compatibility bridge and peer synchronization phases land. A local identity is separate from a JWT account; device loss requires an encrypted recovery bundle or explicit identity rotation and never silently links a replacement identity to an old account. WebRTC, server event ingestion, and remote sync are intentionally not implemented in this phase.
+Local-first data is local-only or pending sync until the compatibility bridge and peer synchronization phases land. A local identity is separate from a JWT account; device loss requires an encrypted recovery bundle or explicit identity rotation and never silently links a replacement identity to an old account. Phase 2 currently includes the signaling, WebRTC session, event-batch, resume, and preview UI foundations; production-grade two-browser verification and server event ingestion remain future work.
 
 The repository currently contains a working centralized prototype:
 
