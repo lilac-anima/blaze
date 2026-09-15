@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from neo4j import AsyncSession
+from typing import Any as AsyncSession
 from backend.app.database import get_session
 from backend.app.models import (
     AttendeeResponse,

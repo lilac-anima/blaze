@@ -4,9 +4,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from neo4j import exceptions as neo4j_exc
+try:
+    from neo4j import exceptions as neo4j_exc
+except ImportError:  # SQLite-only installations do not need Neo4j.
+    neo4j_exc = None
 
-from backend.app.database import get_driver, close_driver
+from backend.app.database import get_driver, close_driver, close_repository, settings
 from backend.app.models import HealthResponse
 
 from backend.app.routers import (
@@ -37,6 +40,7 @@ async def lifespan(app: FastAPI):
     await get_driver()  # Graceful — logs warning if Neo4j unavailable
     yield
     await close_driver()
+    await close_repository()
 
 
 app = FastAPI(
@@ -71,7 +75,14 @@ app.include_router(profile_router)
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Verify the API and Neo4j connection are operational."""
+    """Verify the configured persistence backend is operational."""
+    if settings.storage_backend.lower() == "sqlite":
+        from backend.app.database import _repository
+        if _repository is None:
+            return HealthResponse(status="ok", neo4j_connected=False)
+        counts = _repository.db.execute("SELECT COUNT(*) AS n FROM users").fetchone()["n"]
+        events = _repository.db.execute("SELECT COUNT(*) AS n FROM signed_events").fetchone()["n"]
+        return HealthResponse(status="ok", neo4j_connected=False, node_count=counts, relationship_count=events)
     try:
         driver = await get_driver()
         if driver is None:
@@ -93,7 +104,7 @@ async def health_check():
                     node_count=node_count,
                     relationship_count=rel_count,
                 )
-            except neo4j_exc.ServiceUnavailable:
+            except (neo4j_exc.ServiceUnavailable if neo4j_exc else Exception):
                 return HealthResponse(status="degraded", neo4j_connected=False)
     except Exception as e:
         return HealthResponse(

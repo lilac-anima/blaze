@@ -3,7 +3,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from neo4j import AsyncSession as Neo4jAsyncSession
+from typing import Any as Neo4jAsyncSession
 
 from backend.app.auth.dependencies import get_current_user
 from backend.app.auth.schemas import (
@@ -52,6 +52,19 @@ def _parse_burner_profile(record) -> BurnerProfilePublic:
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register(body: RegisterRequest, neo4j_session: Neo4jAsyncSession = Depends(get_session)):
     """Register a new user account with a burner profile."""
+
+    if getattr(neo4j_session, "is_sqlite", False):
+        if await neo4j_session.username_exists(body.username):
+            raise HTTPException(status_code=409, detail="A user with that username already exists")
+        if body.email and await neo4j_session.email_exists(body.email):
+            raise HTTPException(status_code=409, detail="A user with that email already exists")
+        user_id = str(uuid.uuid4())
+        now_iso = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
+        await neo4j_session.create_user(user_id=user_id, username=body.username, email=body.email,
+            password_hash=hash_password(body.password), created_at=now_iso,
+            profile_id=str(uuid.uuid4()), burner_name=body.burner_name)
+        return TokenResponse(access_token=create_access_token(user_id, body.username),
+                             refresh_token=create_refresh_token(user_id, body.username))
 
     # Check for duplicate username
     check = await neo4j_session.run(
@@ -152,6 +165,13 @@ async def register(body: RegisterRequest, neo4j_session: Neo4jAsyncSession = Dep
 async def login(body: LoginRequest, neo4j_session: Neo4jAsyncSession = Depends(get_session)):
     """Authenticate with username + password."""
 
+    if getattr(neo4j_session, "is_sqlite", False):
+        user = await neo4j_session.find_user(body.login)
+        if not user or not verify_password(body.password, user.get("password_hash", "")):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        return TokenResponse(access_token=create_access_token(user["user_id"], user["username"]),
+                             refresh_token=create_refresh_token(user["user_id"], user["username"]))
+
     result = await neo4j_session.run(
         "MATCH (u:User) WHERE u.username = $login RETURN u LIMIT 1",
         login=body.login,
@@ -218,6 +238,21 @@ async def request_password_reset(
     Returns a reset token (in production this would be emailed).
     """
 
+    if getattr(neo4j_session, "is_sqlite", False):
+        user = await neo4j_session.user_for_reset(body.email)
+        response = {"message": "If that email is registered, a reset link has been sent."}
+        if not user:
+            return response
+        reset_token_data = {"sub": user["user_id"], "type": "password_reset",
+            "exp": __import__("datetime").datetime.now(__import__("datetime").timezone.utc) + __import__("datetime").timedelta(minutes=15),
+            "jti": str(uuid.uuid4())}
+        from jose import jwt as _jwt
+        from backend.app.auth.utils import _get_secret_key, ALGORITHM
+        reset_token = _jwt.encode(reset_token_data, _get_secret_key(), algorithm=ALGORITHM)
+        await neo4j_session.set_reset_token(user["user_id"], reset_token)
+        response["reset_token"] = reset_token
+        return response
+
     result = await neo4j_session.run(
         "MATCH (u:User) WHERE u.email = $email RETURN u.user_id AS uid LIMIT 1",
         email=body.email,
@@ -275,6 +310,14 @@ async def confirm_password_reset(
         )
 
     user_id = payload["sub"]
+
+    if getattr(neo4j_session, "is_sqlite", False):
+        user = await neo4j_session.get_profile(user_id)
+        if not user or user.get("reset_token") != body.token:
+            raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+        await neo4j_session.update_user(user_id, {"password_hash": hash_password(body.new_password), "reset_token": None},
+            __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat())
+        return {"message": "Password has been reset successfully."}
 
     # Verify the stored token matches
     result = await neo4j_session.run(

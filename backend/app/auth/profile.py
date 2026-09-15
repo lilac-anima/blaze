@@ -1,7 +1,9 @@
 """User profile router for the authenticated user (GET/PATCH /api/users/me)."""
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from neo4j import AsyncSession as Neo4jAsyncSession
+from typing import Any as Neo4jAsyncSession
 
 from backend.app.auth.dependencies import get_current_user
 from backend.app.auth.schemas import (
@@ -54,6 +56,11 @@ async def get_my_profile(
 ):
     """Get the current user's profile and burner info."""
     user_id = current_user["sub"]
+    if getattr(neo4j_session, "is_sqlite", False):
+        row = await neo4j_session.get_profile(user_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="User not found")
+        return UserProfileResponse(user=UserPublic(user_id=row["user_id"], email=row.get("email"), username=row["username"], created_at=row["created_at"]), burner=BurnerProfilePublic(playa_name=row.get("playa_name", ""), home_camp=row.get("home_camp"), years_attended=json.loads(row.get("years_attended", "[]")), vibe=row.get("vibe"), bio=row.get("bio")))
 
     result = await neo4j_session.run(
         """
@@ -89,6 +96,22 @@ async def update_my_profile(
     """
     if not neo4j_session:
         raise HTTPException(status_code=503, detail="Database unavailable")
+
+    if getattr(neo4j_session, "is_sqlite", False):
+        user_id = current_user["sub"]
+        row = await neo4j_session.get_profile(user_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="User not found")
+        if user_update:
+            if user_update.email is not None and await neo4j_session.email_exists(user_update.email, user_id):
+                raise HTTPException(status_code=409, detail="Email already in use")
+            values = {k: v for k, v in {"email": user_update.email, "username": user_update.username}.items() if v is not None}
+            await neo4j_session.update_user(user_id, values, __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat())
+        if profile_update:
+            values = {k: v for k, v in {"playa_name": profile_update.playa_name, "home_camp": profile_update.home_camp, "years_attended": json.dumps(profile_update.years_attended) if profile_update.years_attended is not None else None, "vibe": profile_update.vibe, "bio": profile_update.bio}.items() if v is not None}
+            await neo4j_session.update_profile(user_id, values)
+        row = await neo4j_session.get_profile(user_id)
+        return UserProfileResponse(user=UserPublic(user_id=row["user_id"], email=row.get("email"), username=row["username"], created_at=row["created_at"]), burner=BurnerProfilePublic(playa_name=row.get("playa_name", ""), home_camp=row.get("home_camp"), years_attended=json.loads(row.get("years_attended", "[]")), vibe=row.get("vibe"), bio=row.get("bio")))
 
     user_id = current_user["sub"]
     now_iso = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()

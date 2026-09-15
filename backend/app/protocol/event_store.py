@@ -155,10 +155,12 @@ class EventProjector:
 class EventStore:
     """Durable local event log with idempotent receive and parent retry."""
 
-    def __init__(self, path: str = ":memory:") -> None:
-        self._db = sqlite3.connect(path)
-        self._db.execute("CREATE TABLE IF NOT EXISTS events (event_id TEXT PRIMARY KEY, data TEXT NOT NULL)")
-        self._db.commit()
+    def __init__(self, path: str = ":memory:", repository: Any | None = None) -> None:
+        self._repository = repository
+        self._db = repository.db if repository is not None else sqlite3.connect(path)
+        if repository is None:
+            self._db.execute("CREATE TABLE IF NOT EXISTS events (event_id TEXT PRIMARY KEY, data TEXT NOT NULL)")
+            self._db.commit()
         self.projector = EventProjector()
         self._pending: dict[str, Event] = {}
         self._load()
@@ -168,20 +170,30 @@ class EventStore:
         return set(self._pending)
 
     def _load(self) -> None:
-        rows = self._db.execute("SELECT data FROM events ORDER BY rowid").fetchall()
+        table = "signed_events" if self._repository is not None else "events"
+        rows = self._db.execute(f"SELECT data FROM {table} ORDER BY rowid").fetchall()
         for (data,) in rows:
-            event = Event.from_dict(json.loads(data))
             try:
+                event = Event.from_dict(json.loads(data))
                 self.projector.apply(event)
+            except EventValidationError:
+                # Compatibility API records share signed_events but are not
+                # protocol envelopes; leave them available to the repository.
+                continue
             except MissingParent:
                 self._pending[event.event_id] = event
 
     def append(self, event: Event) -> str:
         if not event.verify():
             raise EventValidationError("invalid event signature")
-        if self._db.execute("SELECT 1 FROM events WHERE event_id = ?", (event.event_id,)).fetchone():
+        table = "signed_events" if self._repository is not None else "events"
+        if self._db.execute(f"SELECT 1 FROM {table} WHERE event_id = ?", (event.event_id,)).fetchone():
             return "duplicate"
-        self._db.execute("INSERT INTO events(event_id, data) VALUES (?, ?)", (event.event_id, json.dumps(event.to_dict(), sort_keys=True)))
+        data = json.dumps(event.to_dict(), sort_keys=True)
+        if self._repository is not None:
+            self._db.execute("INSERT INTO signed_events(event_id,event_type,author,object_id,created_at,data,accepted_at) VALUES (?,?,?,?,?,?,datetime('now'))", (event.event_id, event.event_type, event.author, event.object_id, event.created_at, data))
+        else:
+            self._db.execute("INSERT INTO events(event_id, data) VALUES (?, ?)", (event.event_id, data))
         self._db.commit()
         self._pending[event.event_id] = event
         applied = self._drain()
@@ -202,6 +214,11 @@ class EventStore:
                     continue
                 del self._pending[event_id]
                 applied.add(event_id)
+                if self._repository is not None:
+                    record = self.projector.events.get(event.object_id)
+                    if record is not None:
+                        self._db.execute("INSERT OR REPLACE INTO projections(projection,object_id,data,updated_at) VALUES (?,?,?,?)", ("event", event.object_id, json.dumps(_record_data(record), sort_keys=True), event.created_at))
+                        self._db.commit()
                 progress = True
         return applied
 
@@ -222,8 +239,14 @@ class EventStore:
         return counts
 
     def export(self) -> list[dict[str, Any]]:
-        rows = self._db.execute("SELECT data FROM events ORDER BY rowid").fetchall()
+        table = "signed_events" if self._repository is not None else "events"
+        rows = self._db.execute(f"SELECT data FROM {table} ORDER BY rowid").fetchall()
         return [json.loads(data) for (data,) in rows]
 
     def close(self) -> None:
-        self._db.close()
+        if self._repository is None:
+            self._db.close()
+
+
+def _record_data(record: EventRecord) -> dict[str, Any]:
+    return {"event_id": record.event_id, "name": record.name, "date": record.date, "location_on_playa": record.location_on_playa, "camp": record.camp, "description": record.description, "max_attendees": record.max_attendees, "created_by": record.created_by, "tombstoned": record.tombstoned, "tombstone_reason": record.tombstone_reason, "rsvps": record.rsvps, "organizers": sorted(record.organizers)}

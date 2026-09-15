@@ -75,15 +75,15 @@ The intended model is best described as local-first, peer-to-peer, and community
 - News feed — personalized feed from friends and camp/group mates with cursor-based pagination
 - User discovery — search by username, burner name, or home camp; friend-of-friend suggestions
 - JWT authentication — access and refresh token pairs, password reset flow
-- Graceful degradation — returns `503 Database unavailable` when Neo4j is offline
+- SQLite-backed compatibility persistence by default; Neo4j remains an optional graph backend
 
 ### Current Architecture
 
 ```text
 ┌─────────────┐     ┌──────────────┐     ┌─────────────┐
-│  Svelte 5   │────▶│  FastAPI     │────▶│  Neo4j      │
-│  Frontend   │     │  Backend     │     │  Graph DB   │
-│  :5173      │     │  :8000       │     │  :7687      │
+│  Svelte 5   │────▶│  FastAPI     │────▶│  SQLite     │
+│  Frontend   │     │  Backend     │     │ SQLite DB   │
+│  :5173      │     │  :8000       │     │  local file │
 └─────────────┘     └──────────────┘     └─────────────┘
        │                    │
        │   JWT Bearer       │   Async Bolt
@@ -91,7 +91,12 @@ The intended model is best described as local-first, peer-to-peer, and community
        └────────────────────┘
 ```
 
-This is a useful prototype, but it has centralized assumptions:
+SQLite is now the default local persistence boundary. It stores compatibility
+accounts and profiles, signed events, identities, and projection records in a
+single file. Neo4j remains selectable with `STORAGE_BACKEND=neo4j` while the
+remaining graph routes are migrated incrementally.
+
+The graph prototype still has centralized assumptions:
 
 - Neo4j is the authoritative source of truth.
 - The backend creates and identifies users.

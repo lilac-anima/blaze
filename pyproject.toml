@@ -5,7 +5,7 @@ description = "A social graph platform for the Burning Man community"
 requires-python = ">=3.10"
 dependencies = [
     "fastapi>=0.115.0",
-    "neo4j>=5.20.0",
+
     "uvicorn[standard]>=0.30.0",
     "pydantic>=2.9.0",
     "pydantic-settings>=2.5.0",
@@ -16,6 +16,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+neo4j = ["neo4j>=5.20.0"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
@@ -32,3 +33,4 @@ line-length = 100
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["backend/tests"]
+pythonpath = ["."]
