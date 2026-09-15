@@ -6,10 +6,10 @@ async function sha256(value) {
   return [...new Uint8Array(digest)].map(x => x.toString(16).padStart(2, '0')).join('');
 }
 
-export async function signLocalEvent(identity, payload, eventType, objectId, store, parents = []) {
-  const unsigned = { author: identity.publicKey, created_at: new Date().toISOString(), event_type: eventType, object_id: objectId, parents, payload, protocol_version: 1 };
+export async function signLocalEvent(identity, payload, eventType, objectId, store, parents = [], options = {}) {
+  const unsigned = { author: identity.publicKey, created_at: options.createdAt || new Date().toISOString(), event_type: eventType, object_id: objectId, parents, payload, protocol_version: 1 };
   const event_id = await sha256(unsigned);
-  const privateKey = store?.getPrivateKey(identity) || privateKeys.get(identity);
+  const privateKey = store?.getPrivateKey?.(identity) || privateKeys.get(identity);
   if (!privateKey) throw new Error('identity key is unavailable');
   const signature = await crypto.subtle.sign({ name: 'Ed25519' }, privateKey, utf8(canonicalJson({ event_id, ...unsigned })));
   return { ...unsigned, event_id, signature: toBase64(signature) };

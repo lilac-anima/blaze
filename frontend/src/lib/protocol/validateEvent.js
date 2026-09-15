@@ -1,4 +1,5 @@
 import { canonicalJson, utf8 } from './canonical.js';
+import { validateFriendEvent } from './friendEvents.js';
 const ID_RE = /^[A-Za-z0-9._:-]{1,256}$/;
 export const MAX_EVENT_BYTES = 128000;
 export const MAX_PAYLOAD_BYTES = 100000;
@@ -14,10 +15,19 @@ export async function validateEvent(event, { now = Date.now(), maxClockSkewMs = 
     const parsed = Date.parse(event.created_at); if (!Number.isFinite(parsed) || Math.abs(now - parsed) > maxClockSkewMs) throw new Error('timestamp outside policy');
     if (utf8(canonicalJson(event.payload)).byteLength > MAX_PAYLOAD_BYTES || utf8(canonicalJson(event)).byteLength > MAX_EVENT_BYTES) throw new Error('event exceeds size limit');
     const { event_id: ignored, signature: ignoredSignature, ...unsigned } = event;
+    if (event.event_type === 'comment.created') {
+      if (typeof event.payload.post_id !== 'string' || !ID_RE.test(event.payload.post_id) ||
+          typeof event.payload.content !== 'string' || !event.payload.content.trim()) throw new Error('invalid comment payload');
+    }
+    if (event.event_type === 'post.liked' || event.event_type === 'post.unliked') {
+      if (event.payload.post_id !== event.object_id) throw new Error('reaction target mismatch');
+    }
     if (await sha256(unsigned) !== event.event_id) throw new Error('event ID mismatch');
     const key = await crypto.subtle.importKey('raw', decodeBase64(event.author), { name: 'Ed25519' }, false, ['verify']);
     const valid = await crypto.subtle.verify({ name: 'Ed25519' }, key, decodeBase64(event.signature), utf8(canonicalJson({ event_id: event.event_id, ...unsigned })));
     if (!valid) throw new Error('invalid signature');
+    const authorization = validateFriendEvent(event);
+    if (!authorization.valid) throw new Error(authorization.reason);
     return { valid: true, event };
   } catch (error) { return { valid: false, reason: error.message, event }; }
 }

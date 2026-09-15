@@ -79,6 +79,13 @@ class Event:
         try:
             datetime.fromisoformat(self.created_at.replace("Z", "+00:00"))
             identity_from_public_encoded(self.author)
+            if self.event_type == "comment.created":
+                post_id = self.payload.get("post_id")
+                content = self.payload.get("content")
+                if not isinstance(post_id, str) or not _ID_RE.fullmatch(post_id) or not isinstance(content, str) or not content.strip():
+                    raise EventValidationError("invalid comment payload")
+            if self.event_type in {"post.liked", "post.unliked"} and self.payload.get("post_id") != self.object_id:
+                raise EventValidationError("reaction target mismatch")
             if len(canonical_json(self.payload)) > MAX_PAYLOAD_BYTES:
                 raise EventValidationError("payload exceeds size limit")
         except EventValidationError:

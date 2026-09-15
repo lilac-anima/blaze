@@ -1,5 +1,6 @@
 import { validateAndStore } from '../protocol/validateEvent.js';
 import { rebuildStore } from '../projections/projector.js';
+import { materializeFeed } from '../projections/feedProjection.js';
 
 export async function appendLocalEvent(store, event) {
   const result = await validateAndStore(event, store, { now: Date.parse(event.created_at) });
@@ -10,5 +11,5 @@ export async function appendLocalEvent(store, event) {
 
 export async function readLocalFeed(store) {
   const projection = await store.getProjection('root') || await rebuildStore(store);
-  return Object.values(projection.posts || {}).sort((a, b) => b.created_at.localeCompare(a.created_at));
+  return materializeFeed(projection);
 }

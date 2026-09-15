@@ -1,5 +1,6 @@
 import { boundedLimit } from '../local/schema.js';
 import { validateAndStore } from '../protocol/validateEvent.js';
+import { rebuildStore } from '../projections/projector.js';
 
 export function createSyncEngine({ store, session, peerId, batchSize = 100, onStatus = () => {} }) {
   const limit = boundedLimit(batchSize);
@@ -35,6 +36,7 @@ export function createSyncEngine({ store, session, peerId, batchSize = 100, onSt
         if (result.valid) accepted += 1;
         else rejected += 1;
       }
+      if (accepted) await rebuildStore(store);
       if (message.cursor) await store.setPeerCursor(peerId, message.cursor);
       session.send({ type: 'ack', cursor: message.cursor || null, accepted, rejected });
       onStatus(rejected ? 'quarantined' : 'synchronized');

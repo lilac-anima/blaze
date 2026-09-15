@@ -28,5 +28,6 @@ export function createMemoryReplicaStore() {
 
 export const replicaStoreOperations = Object.freeze([
   'appendEvent', 'hasEvent', 'getEventsAfter', 'getMissingParents',
-  'getProjection', 'setPeerCursor', 'getPeerCursor', 'quarantineEvent'
+  'getProjection', 'putProjection', 'setPeerCursor', 'getPeerCursor',
+  'quarantineEvent', 'getQuarantinedEvents'
 ]);

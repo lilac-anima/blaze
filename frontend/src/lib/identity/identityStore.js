@@ -12,7 +12,7 @@ function defaultStorage() {
 function get(storage, key) { return storage.get ? storage.get(key) : storage.getItem(key); }
 function set(storage, key, value) { return storage.set ? storage.set(key, value) : storage.setItem(key, value); }
 
-async function generateIdentity() {
+export async function generateIdentity() {
   const pair = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
   const rawPublic = await crypto.subtle.exportKey('raw', pair.publicKey);
   const publicKey = toBase64(rawPublic);
