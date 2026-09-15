@@ -1,5 +1,6 @@
 <script>
   import { featureMode, isLocalFirst } from '../config/features.js';
+  import { getBaseUrl } from '../api/client.js';
   import { identityStore, store } from '../local/localRuntime.js';
   import { createPeerSession } from '../sync/peerSession.js';
   import { createSignalingTransport } from '../sync/signalingClient.js';
@@ -21,7 +22,8 @@
       const identity = await identityStore.initialize();
       localPeerId = identity.id;
       if (!remotePeerId) throw new Error('Enter the other peer ID first');
-      const baseUrl = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`;
+      const apiUrl = new URL(getBaseUrl());
+      const baseUrl = `${apiUrl.protocol === 'https:' ? 'wss' : 'ws'}://${apiUrl.host}`;
       const transport = createSignalingTransport({ url: baseUrl, roomId, peerId: localPeerId });
       const peerSession = createPeerSession({ peerId: localPeerId, remotePeerId, transport });
       const sync = createSyncEngine({ store, session: peerSession, peerId: remotePeerId, onStatus: value => status = value });

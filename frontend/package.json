@@ -11,6 +11,7 @@
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "fake-indexeddb": "^6.2.5",
+    "playwright": "^1.63.0",
     "svelte": "^5.56.4",
     "vite": "^8.1.1"
   },

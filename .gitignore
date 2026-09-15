@@ -35,3 +35,4 @@ frontend/dist/
 # Project specific
 *.db
 *.neo4j
+nul
