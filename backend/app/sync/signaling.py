@@ -59,8 +59,10 @@ class SignalingRoomManager:
         async with self._lock:
             room = self._rooms.setdefault(room_id, {})
             existing = sorted(peer for peer in room if peer != peer_id)
+            recipients = [room[peer] for peer in existing]
             room[peer_id] = sender
-            return existing
+        await _send_all(recipients, {"type": "peer_joined", "peer_id": peer_id})
+        return existing
 
     async def peers(self, room_id: str) -> list[str]:
         async with self._lock:

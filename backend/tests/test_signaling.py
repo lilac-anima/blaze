@@ -29,12 +29,27 @@ async def test_join_returns_current_peers_without_persisting_payloads():
 
 
 @pytest.mark.asyncio
+async def test_join_notifies_existing_peers_when_a_peer_arrives():
+    manager = SignalingRoomManager()
+    first = FakeSocket([])
+    second = FakeSocket([])
+
+    await manager.join("room-1", "peer-a", first)
+    await manager.join("room-1", "peer-b", second)
+
+    assert first.sent == [{"type": "peer_joined", "peer_id": "peer-b"}]
+    assert second.sent == []
+
+
+@pytest.mark.asyncio
 async def test_relay_targets_one_peer_and_does_not_send_to_sender():
     manager = SignalingRoomManager()
     first = FakeSocket([])
     second = FakeSocket([])
     await manager.join("room-1", "peer-a", first)
     await manager.join("room-1", "peer-b", second)
+    first.sent.clear()
+    second.sent.clear()
 
     message = SignalingEnvelope(
         type="offer",
@@ -57,6 +72,8 @@ async def test_leave_notifies_remaining_peer_and_removes_empty_room():
     second = FakeSocket([])
     await manager.join("room-1", "peer-a", first)
     await manager.join("room-1", "peer-b", second)
+    first.sent.clear()
+    second.sent.clear()
 
     await manager.leave("room-1", "peer-a")
     assert first.sent == []

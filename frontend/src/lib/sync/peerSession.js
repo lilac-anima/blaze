@@ -13,9 +13,22 @@ export function createPeerSession({
   let dataMessageHandler = () => {};
   let stateHandler = () => {};
   let restarting = false;
+  let pendingCandidates = [];
+
+  async function addPendingCandidates() {
+    const candidates = pendingCandidates;
+    pendingCandidates = [];
+    for (const candidate of candidates) await connection.addIceCandidate(candidate);
+  }
 
   function signal(type, payload) {
     transport.send({ type, target_peer_id: remotePeerId, payload });
+  }
+
+  async function createOffer() {
+    const offer = await connection.createOffer();
+    await connection.setLocalDescription(offer);
+    signal('offer', offer);
   }
 
   function attachChannel(nextChannel) {
@@ -36,15 +49,20 @@ export function createPeerSession({
 
   async function handleSignal(message) {
     if (message.peer_id !== remotePeerId) return;
-    if (message.type === 'offer') {
+    if (message.type === 'peer_joined') {
+      if (peerId < remotePeerId) await createOffer();
+    } else if (message.type === 'offer') {
       await connection.setRemoteDescription(message.payload);
+      await addPendingCandidates();
       const answer = await connection.createAnswer();
       await connection.setLocalDescription(answer);
       signal('answer', answer);
     } else if (message.type === 'answer') {
       await connection.setRemoteDescription(message.payload);
+      await addPendingCandidates();
     } else if (message.type === 'ice' && message.payload) {
-      await connection.addIceCandidate(message.payload);
+      if (connection.remoteDescription) await connection.addIceCandidate(message.payload);
+      else pendingCandidates.push(message.payload);
     }
   }
 
@@ -54,18 +72,23 @@ export function createPeerSession({
       unsubscribe?.();
       channel?.close();
       connection?.close();
+      pendingCandidates = [];
       connection = new RTCPeerConnectionImpl();
       connection.onicecandidate = ({ candidate }) => {
         if (candidate) signal('ice', candidate);
       };
-      connection.onconnectionstatechange = () => stateHandler(connection.connectionState);
+      // The data channel is the synchronization boundary. Chromium can report
+      // the RTCPeerConnection as connected before that channel is open; if we
+      // publish "connected" here, the panel starts sync too early and
+      // session.send() races the channel open event.
+      connection.onconnectionstatechange = () => {
+        if (connection.connectionState !== 'connected') stateHandler(connection.connectionState);
+      };
       connection.ondatachannel = ({ channel: nextChannel }) => attachChannel(nextChannel);
       unsubscribe = transport.onMessage(handleSignal);
       if (initiator) {
         attachChannel(connection.createDataChannel('blaze-events'));
-        const offer = await connection.createOffer();
-        await connection.setLocalDescription(offer);
-        signal('offer', offer);
+        await createOffer();
       }
       restarting = false;
     },

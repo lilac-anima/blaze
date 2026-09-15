@@ -12,7 +12,7 @@ The repository currently contains a working centralized prototype plus an opt-in
 - `local-first`: browser-generated signing identity, signed profile/post events, local projections, offline local creation, and peer-sync controls.
 - `p2p-preview`: the same local behavior with the Phase 2 WebRTC/signaling preview enabled.
 
-Local-first data is local-only or pending sync until the compatibility bridge and peer synchronization phases land. A local identity is separate from a JWT account; device loss requires an encrypted recovery bundle or explicit identity rotation and never silently links a replacement identity to an old account. Phase 2 currently includes the signaling, WebRTC session, event-batch, resume, and preview UI foundations; production-grade two-browser verification and server event ingestion remain future work.
+Local-first data is local-only or pending sync until the compatibility bridge and peer synchronization phases land. A local identity is separate from a JWT account; device loss requires an encrypted recovery bundle or explicit identity rotation and never silently links a replacement identity to an old account. Phase 2's two-browser preview acceptance is verified locally; production hardening, server event ingestion, and durable rendezvous infrastructure remain future work.
 
 The repository currently contains a working centralized prototype:
 
@@ -553,10 +553,23 @@ Acceptance criteria:
 
 Acceptance criteria:
 
-- Two browser instances can exchange profiles and posts.
-- Either peer can go offline and later catch up.
-- Events arrive out of order without corrupting projections.
-- No social data is stored by the signaling service.
+- [x] Two browser instances can exchange profiles and posts.
+- [x] Either peer can go offline and later catch up.
+- [x] Events arrive out of order without corrupting projections.
+- [x] No social data is stored by the signaling service.
+
+Phase 2 acceptance was verified with two isolated Playwright Chromium contexts
+against the preview frontend and running API. The browser test covers signed
+post exchange, disconnect/reconnect catch-up, persisted cursors, duplicate-free
+projection rebuilding, and the signaling boundary. Focused projection tests
+also verify deterministic out-of-order delivery, while signaling tests verify
+that social event fields are rejected and never relayed. Re-run the browser
+acceptance from `frontend/` with:
+
+```bash
+API_URL=http://127.0.0.1:8001 APP_URL=http://127.0.0.1:5173 \
+  node --test tests/phase2.browser.test.js
+```
 
 ### Phase 3: Social graph events
 

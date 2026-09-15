@@ -17,6 +17,10 @@ def test_signaling_websocket_joins_and_relays_negotiation_messages():
                     "peer_id": "peer-b",
                     "peers": ["peer-a"],
                 }
+                assert first.receive_json() == {
+                    "type": "peer_joined",
+                    "peer_id": "peer-b",
+                }
                 second.send_json(
                     {
                         "type": "offer",

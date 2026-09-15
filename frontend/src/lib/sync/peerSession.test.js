@@ -71,3 +71,46 @@ test('receiver answers offers and applies ICE candidates', async () => {
   await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(FakePeerConnection.instances.at(-1).candidate, { candidate: 'candidate' });
 });
+
+test('receiver queues ICE candidates that arrive before the offer', async () => {
+  const transport = signaling();
+  const session = createPeerSession({ peerId: 'b', remotePeerId: 'a', transport, RTCPeerConnectionImpl: FakePeerConnection });
+  await session.start({ initiator: false });
+  const connection = FakePeerConnection.instances.at(-1);
+
+  transport.deliver({ type: 'ice', peer_id: 'a', target_peer_id: 'b', payload: { candidate: 'early-candidate' } });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(connection.candidate, undefined);
+
+  transport.deliver({ type: 'offer', peer_id: 'a', target_peer_id: 'b', payload: { type: 'offer', sdp: 'remote-offer' } });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(connection.candidate, { candidate: 'early-candidate' });
+});
+
+test('initiator renegotiates when the remote peer joins after startup', async () => {
+  const transport = signaling();
+  const session = createPeerSession({ peerId: 'a', remotePeerId: 'b', transport, RTCPeerConnectionImpl: FakePeerConnection });
+  await session.start({ initiator: true });
+  transport.sent.length = 0;
+
+  transport.deliver({ type: 'peer_joined', peer_id: 'b' });
+  await new Promise(resolve => setImmediate(resolve));
+
+  assert.deepEqual(transport.sent[0], { type: 'offer', target_peer_id: 'b', payload: { type: 'offer', sdp: 'offer-sdp' } });
+});
+
+test('connection state does not report connected before the data channel opens', async () => {
+  const transport = signaling();
+  const states = [];
+  const session = createPeerSession({ peerId: 'a', remotePeerId: 'b', transport, RTCPeerConnectionImpl: FakePeerConnection });
+  session.onStateChange(state => states.push(state));
+  await session.start({ initiator: true });
+
+  const connection = FakePeerConnection.instances.at(-1);
+  connection.connectionState = 'connected';
+  connection.onconnectionstatechange();
+
+  assert.equal(states.includes('connected'), false);
+  session.channel.open();
+  assert.equal(states.at(-1), 'connected');
+});

@@ -13,6 +13,7 @@
   let status = $state('offline');
   let error = $state('');
   let session = $state(null);
+  let syncEngine = null;
   let resume = $state(null);
 
   async function connect() {
@@ -27,6 +28,7 @@
       const transport = createSignalingTransport({ url: baseUrl, roomId, peerId: localPeerId });
       const peerSession = createPeerSession({ peerId: localPeerId, remotePeerId, transport });
       const sync = createSyncEngine({ store, session: peerSession, peerId: remotePeerId, onStatus: value => status = value });
+      syncEngine = sync;
       peerSession.onStateChange(value => {
         status = value;
         if (value === 'connected') sync.start();
@@ -35,13 +37,13 @@
       resume = createResumeController({
         connect: async () => {
           await transport.connect();
-          await peerSession.restart({ initiator: true });
+          await peerSession.restart({ initiator: localPeerId < remotePeerId });
         },
         resync: () => sync.resync(),
         onStatus: value => status = value,
       });
       await transport.connect();
-      await peerSession.start({ initiator: true });
+      await peerSession.start({ initiator: localPeerId < remotePeerId });
       session = peerSession;
       status = 'waiting-for-peer';
     } catch (cause) {
@@ -51,13 +53,20 @@
   }
 
   async function retry() {
-    if (resume) await resume.resume().catch(cause => { error = cause.message; });
+    try {
+      if (session?.channel?.readyState === 'open') await syncEngine?.resync();
+      else if (resume) await resume.resume();
+    } catch (cause) {
+      error = cause.message;
+    }
   }
 
   function disconnect() {
     resume?.stop();
+    syncEngine?.close();
     session?.close();
     session = null;
+    syncEngine = null;
     status = 'offline';
   }
 </script>
