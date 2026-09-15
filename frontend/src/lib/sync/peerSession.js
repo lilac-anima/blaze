@@ -12,6 +12,7 @@ export function createPeerSession({
   let unsubscribe;
   let dataMessageHandler = () => {};
   let stateHandler = () => {};
+  let restarting = false;
 
   function signal(type, payload) {
     transport.send({ type, target_peer_id: remotePeerId, payload });
@@ -20,7 +21,7 @@ export function createPeerSession({
   function attachChannel(nextChannel) {
     channel = nextChannel;
     channel.onopen = () => stateHandler('connected');
-    channel.onclose = () => stateHandler('disconnected');
+    channel.onclose = () => { if (!restarting) stateHandler('disconnected'); };
     channel.onerror = () => stateHandler('failed');
     channel.onmessage = ({ data }) => {
       try {
@@ -49,6 +50,10 @@ export function createPeerSession({
 
   return {
     async start({ initiator = false } = {}) {
+      restarting = true;
+      unsubscribe?.();
+      channel?.close();
+      connection?.close();
       connection = new RTCPeerConnectionImpl();
       connection.onicecandidate = ({ candidate }) => {
         if (candidate) signal('ice', candidate);
@@ -62,7 +67,9 @@ export function createPeerSession({
         await connection.setLocalDescription(offer);
         signal('offer', offer);
       }
+      restarting = false;
     },
+    async restart(options = {}) { return this.start(options); },
     send(message) {
       if (!channel || channel.readyState !== 'open') throw new Error('data channel is not open');
       const encoded = JSON.stringify(message);

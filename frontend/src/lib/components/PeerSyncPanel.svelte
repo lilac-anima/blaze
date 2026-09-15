@@ -28,9 +28,13 @@
       peerSession.onStateChange(value => {
         status = value;
         if (value === 'connected') sync.start();
+        if (value === 'disconnected' && resume) resume.resume().catch(cause => { error = cause.message; });
       });
       resume = createResumeController({
-        connect: () => transport.connect(),
+        connect: async () => {
+          await transport.connect();
+          await peerSession.restart({ initiator: true });
+        },
         resync: () => sync.resync(),
         onStatus: value => status = value,
       });

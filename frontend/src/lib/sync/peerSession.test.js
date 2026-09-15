@@ -47,6 +47,18 @@ test('initiator creates an offer and sends bounded JSON data frames', async () =
   assert.deepEqual(messages, [{ type: 'hello', payload: { cursor: 'x' } }]);
 });
 
+test('restart replaces the connection without reporting a false disconnect', async () => {
+  const transport = signaling();
+  const states = [];
+  const session = createPeerSession({ peerId: 'a', remotePeerId: 'b', transport, RTCPeerConnectionImpl: FakePeerConnection });
+  session.onStateChange(state => states.push(state));
+  const before = FakePeerConnection.instances.length;
+  await session.start({ initiator: true });
+  await session.restart({ initiator: true });
+  assert.equal(FakePeerConnection.instances.length, before + 2);
+  assert.equal(states.includes('disconnected'), false);
+});
+
 test('receiver answers offers and applies ICE candidates', async () => {
   const transport = signaling();
   const session = createPeerSession({ peerId: 'b', remotePeerId: 'a', transport, RTCPeerConnectionImpl: FakePeerConnection });
